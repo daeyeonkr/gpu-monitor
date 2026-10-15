@@ -115,7 +115,9 @@ function renderTypes(){
     if (usable(n)){ g.used += Math.min(n.alloc, n.total); g.free += freeOf(n); }
     else g.down += n.total;
   }
-  const rows = Object.entries(by).sort((a, b) => b[1].free - a[1].free || a[0].localeCompare(b[0]));
+  // 주로 쓰는 H200, A100 계열을 맨 앞에
+  const rank = k => /^H200/.test(k) ? 0 : /^A100/.test(k) ? 1 : 2;
+  const rows = Object.entries(by).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1].free - a[1].free || a[0].localeCompare(b[0]));
   $('types').innerHTML = rows.map(([k, g]) => `
     <div class="card">
       <div class="t">${esc(k)}</div>
