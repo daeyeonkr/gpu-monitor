@@ -190,11 +190,11 @@ function renderNodes(){
     }).join('') + '</tbody>';
 }
 
-const JOB_HEAD = '<thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th>경과</th><th>제한</th></tr></thead>';
+const JOB_HEAD = '<thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th>남은 시간</th><th>제한</th></tr></thead>';
 const jobRow = j => `<tr class="${j[1] === ME ? 'me' : ''}">
   <td class="mono">${esc(j[0])}</td><td>${esc(j[1])}</td><td>${esc(j[2])}</td><td>${esc(j[3])}</td>
   <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td>${j[5] || ''}</td>
-  <td class="mono">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[7])}</td><td>${esc(j[8])}</td></tr>`;
+  <td class="mono">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
 
 function userJobs(id, user){
   const js = snap.jobs.filter(j => j[1] === user);
