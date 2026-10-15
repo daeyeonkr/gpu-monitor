@@ -70,6 +70,9 @@
     <h2>내 잡</h2>
     <div class="tbl-wrap"><table id="mine"></table></div>
 
+    <h2>koyy001 잡</h2>
+    <div class="tbl-wrap"><table id="koyy"></table></div>
+
     <h2>노드</h2>
     <div class="controls">
       <select id="nodeType"><option value="">모든 GPU</option></select>
@@ -193,11 +196,12 @@ const jobRow = j => `<tr class="${j[1] === ME ? 'me' : ''}">
   <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td>${j[5] || ''}</td>
   <td class="mono">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[7])}</td><td>${esc(j[8])}</td></tr>`;
 
-function renderMine(){
-  const mine = snap.jobs.filter(j => j[1] === ME);
-  $('mine').innerHTML = JOB_HEAD + '<tbody>' + (mine.length ? mine.map(jobRow).join('')
+function userJobs(id, user){
+  const js = snap.jobs.filter(j => j[1] === user);
+  $(id).innerHTML = JOB_HEAD + '<tbody>' + (js.length ? js.map(jobRow).join('')
     : '<tr><td colspan="9" class="hint">돌고 있는 잡 없음</td></tr>') + '</tbody>';
 }
+function renderMine(){ userJobs('mine', ME); userJobs('koyy', 'koyy001'); }
 
 const LIMIT = 300;
 function renderJobs(){
