@@ -40,6 +40,8 @@
   th{color:var(--muted);font-weight:500;position:sticky;top:0;background:var(--card);cursor:pointer;user-select:none;}
   tr:last-child td{border-bottom:none;}
   tr.me td{background:var(--me);}
+  table.jt{table-layout:fixed;min-width:900px;}
+  table.jt td{overflow:hidden;text-overflow:ellipsis;}
   td.mono{font-family:var(--mono);font-size:12px;}
   .gpus{display:inline-flex;gap:3px;vertical-align:middle;}
   .gpus b{width:10px;height:10px;border-radius:2px;background:var(--free);}
@@ -68,10 +70,10 @@
     </details>
 
     <h2>내 잡</h2>
-    <div class="tbl-wrap"><table id="mine"></table></div>
+    <div class="tbl-wrap"><table id="mine" class="jt"></table></div>
 
     <h2>koyy001 잡</h2>
-    <div class="tbl-wrap"><table id="koyy"></table></div>
+    <div class="tbl-wrap"><table id="koyy" class="jt"></table></div>
 
     <h2>노드</h2>
     <div class="controls">
@@ -85,7 +87,7 @@
       <input id="q" placeholder="사용자·잡 이름·파티션·노드 검색">
       <select id="jstate"><option value="">전체</option><option value="R">실행 중</option><option value="P">대기</option></select>
     </div>
-    <div class="tbl-wrap"><table id="jobs"></table></div>
+    <div class="tbl-wrap"><table id="jobs" class="jt"></table></div>
     <p class="hint" id="jobsMore"></p>
   </main>
 </div>
@@ -190,11 +192,11 @@ function renderNodes(){
     }).join('') + '</tbody>';
 }
 
-const JOB_HEAD = '<thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th>남은 시간</th><th>제한</th></tr></thead>';
+const JOB_HEAD = '<colgroup>' + [8, 10, 20, 12, 6, 5, 19, 10, 10].map(w => `<col style="width:${w}%">`).join('') + '</colgroup><thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th>남은 시간</th><th>제한</th></tr></thead>';
 const jobRow = j => `<tr class="${j[1] === ME ? 'me' : ''}">
-  <td class="mono">${esc(j[0])}</td><td>${esc(j[1])}</td><td>${esc(j[2])}</td><td>${esc(j[3])}</td>
+  <td class="mono">${esc(j[0])}</td><td>${esc(j[1])}</td><td title="${esc(j[2])}">${esc(j[2])}</td><td>${esc(j[3])}</td>
   <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td>${j[5] || ''}</td>
-  <td class="mono">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
+  <td class="mono" title="${esc(j[4] === 'R' ? j[6] : j[9])}">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
 
 function userJobs(id, user){
   const js = snap.jobs.filter(j => j[1] === user);
