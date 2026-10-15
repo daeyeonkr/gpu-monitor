@@ -44,25 +44,16 @@
   .controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
   input,select,button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
   button{cursor:pointer;}
-  #login{max-width:340px;margin:18vh auto 0;display:flex;flex-direction:column;gap:10px;}
-  #err{color:var(--used);min-height:1.5em;}
   .hint{color:var(--muted);font-size:13px;}
   [hidden]{display:none!important;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <form id="login" hidden>
-    <h1>GPU 현황</h1>
-    <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password" autofocus>
-    <button>열기</button>
-    <div id="err"></div>
-  </form>
-
-  <main id="app" hidden>
+  <main id="app">
     <header>
       <h1>GPU 현황</h1>
-      <span id="stamp"></span>
+      <span id="stamp">불러오는 중…</span>
       <span class="hint">2분마다 갱신</span>
     </header>
 
@@ -91,36 +82,17 @@
 
 <script>
 const ME = 'dkim011006';
-const DATA_URL = 'https://api.github.com/repos/daeyeonkr/gpu-monitor/contents/data.enc?ref=data';
-const ITER = 100000;
-const KEY = 'gpu-monitor-pw';
-let snap = null, pw = null;
+// raw CDN 캐시를 다 같이 공유하도록 2분 창마다 같은 주소 (push가 끝난 30초 뒤에 창이 바뀜)
+const DATA_URL = () => 'https://raw.githubusercontent.com/daeyeonkr/gpu-monitor/data/data.json.gz?t=' + Math.floor((Date.now() / 1000 - 30) / 120);
+let snap = null;
 
 const $ = id => document.getElementById(id);
-const store = {
-  get(){ try{ return localStorage.getItem(KEY); }catch{ return null; } },
-  set(v){ try{ localStorage.setItem(KEY, v); }catch{} },
-  del(){ try{ localStorage.removeItem(KEY); }catch{} },
-};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-// openssl enc -aes-256-cbc -pbkdf2 -md sha256 형식("Salted__" + salt 8B + 암호문) 복호화
-async function decrypt(buf, pass){
-  const b = new Uint8Array(buf);
-  if (new TextDecoder().decode(b.slice(0, 8)) !== 'Salted__') throw new Error('format');
-  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveBits']);
-  const bits = new Uint8Array(await crypto.subtle.deriveBits(
-    {name:'PBKDF2', hash:'SHA-256', salt:b.slice(8, 16), iterations:ITER}, base, 384));
-  const key = await crypto.subtle.importKey('raw', bits.slice(0, 32), 'AES-CBC', false, ['decrypt']);
-  const gz = await crypto.subtle.decrypt({name:'AES-CBC', iv:bits.slice(32, 48)}, key, b.slice(16));
-  const text = await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
-  return JSON.parse(text);
-}
-
 async function load(){
-  const r = await fetch(DATA_URL, {headers:{Accept:'application/vnd.github.raw'}, cache:'no-store'});
+  const r = await fetch(DATA_URL());
   if (!r.ok) throw new Error('fetch ' + r.status);
-  return decrypt(await r.arrayBuffer(), pw);
+  return JSON.parse(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text());
 }
 
 const usable = n => !/DOWN|DRAIN|NOT_RESPONDING|FAIL|MAINT|RESERVED/.test(n.state);
@@ -229,32 +201,15 @@ function render(){ renderStamp(); renderTypes(); renderMine(); renderNodes(); re
 
 async function refresh(){
   try{ snap = await load(); render(); }
-  catch(e){ if (snap) renderStamp(); console.warn(e); }
+  catch(e){ if (snap) renderStamp(); else $('stamp').textContent = '데이터를 불러오지 못했습니다'; console.warn(e); }
 }
 
-async function start(pass){
-  pw = pass;
-  try{ snap = await load(); }
-  catch(e){
-    pw = null; store.del();
-    $('login').hidden = false; $('app').hidden = true;
-    $('err').textContent = /fetch/.test(e.message) ? '데이터를 불러오지 못했습니다 (' + e.message + ')' : '비밀번호가 맞지 않습니다';
-    return;
-  }
-  store.set(pass);
-  $('login').hidden = true; $('app').hidden = false;
-  render();
-  setInterval(refresh, 120000);
-  setInterval(renderStamp, 30000);
-}
-
-$('login').onsubmit = e => { e.preventDefault(); $('err').textContent = ''; start($('pw').value); };
 for (const id of ['nodeType', 'onlyFree']) $(id).onchange = renderNodes;
 $('q').oninput = renderJobs; $('jstate').onchange = renderJobs;
-document.addEventListener('visibilitychange', () => { if (!document.hidden && pw) refresh(); });
-
-const saved = store.get();
-if (saved) start(saved); else $('login').hidden = false;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+refresh();
+setInterval(refresh, 120000);
+setInterval(renderStamp, 30000);
 </script>
 </body>
 </html>
