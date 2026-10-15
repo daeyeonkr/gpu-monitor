@@ -29,6 +29,9 @@
   .card .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px;}
   .card .n small{font-size:14px;font-weight:400;color:var(--muted);}
   .card .s{color:var(--muted);font-size:13px;}
+  .more{margin-top:12px;}
+  .more summary{cursor:pointer;color:var(--muted);padding:4px 0;}
+  .more .cards{margin-top:8px;}
   .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line);margin-top:8px;}
   .bar i{display:block;height:100%;}
   .tbl-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;}
@@ -59,6 +62,10 @@
 
     <h2>GPU 종류별 남은 개수</h2>
     <div class="cards" id="types"></div>
+    <details class="more">
+      <summary id="otherSum">다른 GPU</summary>
+      <div class="cards" id="otherTypes"></div>
+    </details>
 
     <h2>내 잡</h2>
     <div class="tbl-wrap"><table id="mine"></table></div>
@@ -115,16 +122,20 @@ function renderTypes(){
     if (usable(n)){ g.used += Math.min(n.alloc, n.total); g.free += freeOf(n); }
     else g.down += n.total;
   }
-  // 주로 쓰는 H200, A100 계열을 맨 앞에
-  const rank = k => /^H200/.test(k) ? 0 : /^A100/.test(k) ? 1 : 2;
+  // 주로 쓰는 A100 80GB, H200, A100 40GB 순으로 앞에, 나머지는 토글 안에
+  const rank = k => /^A100.*80GB/.test(k) ? 0 : /^H200/.test(k) ? 1 : /^A100.*40GB/.test(k) ? 2 : 3;
   const rows = Object.entries(by).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1].free - a[1].free || a[0].localeCompare(b[0]));
-  $('types').innerHTML = rows.map(([k, g]) => `
+  const card = ([k, g]) => `
     <div class="card">
       <div class="t">${esc(k)}</div>
       <div class="n">${g.free} <small>/ ${g.total} 남음</small></div>
       <div class="s">노드 ${g.nodes}개${g.down ? ` · 사용 불가 ${g.down}` : ''}</div>
       <div class="bar"><i style="width:${g.used / g.total * 100}%;background:var(--used)"></i><i style="width:${g.free / g.total * 100}%;background:var(--free)"></i><i style="width:${g.down / g.total * 100}%;background:var(--down)"></i></div>
-    </div>`).join('');
+    </div>`;
+  const main = rows.filter(r => rank(r[0]) < 3), rest = rows.filter(r => rank(r[0]) === 3);
+  $('types').innerHTML = main.map(card).join('');
+  $('otherTypes').innerHTML = rest.map(card).join('');
+  $('otherSum').textContent = `다른 GPU ${rest.length}종 · ${rest.reduce((s, r) => s + r[1].free, 0)}개 남음`;
   const sel = $('nodeType'), cur = sel.value;
   sel.innerHTML = '<option value="">모든 GPU</option>' + rows.map(([k]) => `<option>${esc(k)}</option>`).join('');
   sel.value = cur;
