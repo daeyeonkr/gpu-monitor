@@ -8,12 +8,12 @@
 <style>
   :root{
     --bg:#f7f7f8; --card:#fff; --ink:#17171c; --muted:#6b6b78; --line:#e3e3e8;
-    --used:#e5546b; --free:#2f9e6e; --down:#b9b9c3; --me:#fff4d6; --accent:#3a6ff7;
+    --used:#e5546b; --free:#2f9e6e; --down:#b9b9c3; --me:#fff4d6; --run:#e3f5ea; --accent:#3a6ff7;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   @media (prefers-color-scheme:dark){:root{
     --bg:#111114; --card:#1b1b20; --ink:#ececf1; --muted:#9a9aa8; --line:#2c2c34;
-    --used:#f0657c; --free:#3fbf86; --down:#4a4a55; --me:#3a3220; --accent:#7c9cff;
+    --used:#f0657c; --free:#3fbf86; --down:#4a4a55; --me:#3a3220; --run:#1d3328; --accent:#7c9cff;
   }}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Pretendard","Noto Sans KR",sans-serif;}
@@ -40,6 +40,7 @@
   th{color:var(--muted);font-weight:500;position:sticky;top:0;background:var(--card);cursor:pointer;user-select:none;}
   tr:last-child td{border-bottom:none;}
   tr.me td{background:var(--me);}
+  tr.run td{background:var(--run);}
   table.jt{table-layout:fixed;min-width:900px;}
   table.jt td{overflow:hidden;text-overflow:ellipsis;}
   td.mono{font-family:var(--mono);font-size:12px;}
@@ -203,14 +204,15 @@ function healthOf(name){
 }
 
 const JOB_HEAD = '<colgroup>' + [8, 10, 20, 12, 6, 5, 19, 10, 10].map(w => `<col style="width:${w}%">`).join('') + '</colgroup><thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th>남은 시간</th><th>제한</th></tr></thead>';
-const jobRow = j => `<tr class="${j[1] === ME ? 'me' : ''}">
+// 내 잡·koyy001 표(own)는 실행 중인 잡만 초록, 전체 잡 표는 내 잡을 황금색
+const jobRow = (j, own) => `<tr class="${own ? (j[4] === 'R' ? 'run' : '') : j[1] === ME ? 'me' : ''}">
   <td class="mono">${esc(j[0])}</td><td>${esc(j[1])}</td><td title="${esc(j[2])}">${esc(j[2])}</td><td>${esc(j[3])}</td>
   <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td>${j[5] || ''}</td>
   <td class="mono" title="${esc(j[4] === 'R' ? j[6] : j[9])}">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
 
 function userJobs(id, user){
   const js = snap.jobs.filter(j => j[1] === user);
-  $(id).innerHTML = JOB_HEAD + '<tbody>' + (js.length ? js.map(jobRow).join('')
+  $(id).innerHTML = JOB_HEAD + '<tbody>' + (js.length ? js.map(j => jobRow(j, true)).join('')
     : '<tr><td colspan="9" class="hint">돌고 있는 잡 없음</td></tr>') + '</tbody>';
 }
 function renderMine(){ userJobs('mine', ME); userJobs('koyy', 'koyy001'); }
@@ -220,7 +222,7 @@ function renderJobs(){
   const q = $('q').value.trim().toLowerCase(), st = $('jstate').value;
   const rows = snap.jobs.filter(j => (!st || j[4] === st) &&
     (!q || [j[1], j[2], j[3], j[6]].some(v => v.toLowerCase().includes(q))));
-  $('jobs').innerHTML = JOB_HEAD + '<tbody>' + rows.slice(0, LIMIT).map(jobRow).join('') + '</tbody>';
+  $('jobs').innerHTML = JOB_HEAD + '<tbody>' + rows.slice(0, LIMIT).map(j => jobRow(j)).join('') + '</tbody>';
   const r = snap.jobs.filter(j => j[4] === 'R').length;
   $('jobsMore').textContent = `실행 ${r} · 대기 ${snap.jobs.length - r}` +
     (rows.length > LIMIT ? ` · 검색 결과 ${rows.length}개 중 ${LIMIT}개 표시` : '');
