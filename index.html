@@ -52,6 +52,11 @@
   button{cursor:pointer;}
   .hint{color:var(--muted);font-size:13px;}
   [hidden]{display:none!important;}
+  .qblock{margin:8px 0 14px;}
+  .qtext{font-size:13px;margin-bottom:4px;}
+  .qbars{display:flex;align-items:flex-end;gap:1px;height:38px;overflow:hidden;}
+  .qbars i{display:block;flex:0 0 3px;background:var(--muted);opacity:.55;}
+  .qbars i.me{background:var(--accent);opacity:1;flex-basis:6px;}
 </style>
 </head>
 <body>
@@ -72,6 +77,7 @@
 
     <h2>내 잡</h2>
     <div class="tbl-wrap"><table id="mine" class="jt"></table></div>
+    <div id="queue"></div>
 
     <h2>koyy001 잡</h2>
     <div class="tbl-wrap"><table id="koyy" class="jt"></table></div>
@@ -203,19 +209,51 @@ function healthOf(name){
   return [[mark('GPU', h[1]), mark('통신', h[2]), mark('wandb', h[3])].filter(Boolean).join(' ') + ` (${esc(d)})`, h[4] || ''];
 }
 
-const JOB_HEAD = '<colgroup>' + [8, 10, 20, 12, 6, 5, 19, 10, 10].map(w => `<col style="width:${w}%">`).join('') + '</colgroup><thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th>남은 시간</th><th>제한</th></tr></thead>';
+const JOB_HEAD = '<colgroup>' + [7, 9, 18, 11, 5, 4, 17, 11, 9, 9].map(w => `<col style="width:${w}%">`).join('') + '</colgroup><thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th title="스케줄링 우선순위 (클수록 먼저). 대기 잡은 같은 파티션 줄에서의 순번">우선순위 · 줄</th><th>남은 시간</th><th>제한</th></tr></thead>';
+
+// 대기열: 잡 j 와 파티션을 하나라도 공유하는 대기 잡들 (의존성·보류 등 우선순위와 무관하게 멈춘 잡은 제외), 우선순위 큰 순
+const parked = j => /Dependency|Held|BeginTime|QOSMax|AssocMax|ReqNodeNotAvail|Licenses/.test(j[9] || '');
+const partsOf = j => j[3].split(',');
+function queueOf(j){
+  const mine = new Set(partsOf(j));
+  return snap.jobs.filter(o => o[4] === 'P' && !parked(o) && partsOf(o).some(p => mine.has(p)))
+    .sort((a, b) => (b[11] ?? 0) - (a[11] ?? 0) || (+a[0]) - (+b[0]));
+}
+function prioCell(j){
+  if (j[11] === undefined) return '';
+  if (j[4] !== 'P') return `<span class="hint">${j[11]}</span>`;
+  if (parked(j)) return `${j[11]} <span class="hint">(보류)</span>`;
+  const q = queueOf(j), k = q.findIndex(o => o[0] === j[0]);
+  const ahead = q.slice(0, k), g = ahead.reduce((s, o) => s + (o[5] || 0), 0);
+  return `<span title="앞에 ${ahead.length}개 잡, GPU ${g}개 요청, 줄 최고 ${q[0]?.[11] ?? ''}">${j[11]} <small>${k + 1}/${q.length}</small></span>`;
+}
 // 내 잡·koyy001 표(own)는 실행 중인 잡만 초록, 전체 잡 표는 내 잡을 황금색
 const jobRow = (j, own) => `<tr class="${own ? (j[4] === 'R' ? 'run' : '') : j[1] === ME ? 'me' : ''}">
   <td class="mono">${esc(j[0])}</td><td>${esc(j[1])}</td><td title="${esc(j[2])}">${esc(j[2])}</td><td>${esc(j[3])}</td>
   <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td>${j[5] || ''}</td>
-  <td class="mono" title="${esc(j[4] === 'R' ? j[6] : j[9])}">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
+  <td class="mono" title="${esc(j[4] === 'R' ? j[6] : j[9])}">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${prioCell(j)}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
 
 function userJobs(id, user){
   const js = snap.jobs.filter(j => j[1] === user);
   $(id).innerHTML = JOB_HEAD + '<tbody>' + (js.length ? js.map(j => jobRow(j, true)).join('')
-    : '<tr><td colspan="9" class="hint">돌고 있는 잡 없음</td></tr>') + '</tbody>';
+    : '<tr><td colspan="10" class="hint">돌고 있는 잡 없음</td></tr>') + '</tbody>';
 }
-function renderMine(){ userJobs('mine', ME); userJobs('koyy', 'koyy001'); }
+
+// 내 대기 잡이 선 줄: 파티션 묶음마다 대기 잡 우선순위를 막대로 (내 잡 황금색), 앞에 선 잡과 GPU 요청 수
+function renderQueue(){
+  const mine = snap.jobs.filter(j => j[1] === ME && j[4] === 'P' && j[11] !== undefined && !parked(j));
+  const seen = new Set(), blocks = [];
+  for (const j of mine){
+    if (seen.has(j[3])) continue;
+    seen.add(j[3]);
+    const q = queueOf(j), top = q[0]?.[11] || 1, ids = new Set(mine.filter(o => o[3] === j[3]).map(o => o[0]));
+    const k = q.findIndex(o => ids.has(o[0])), ahead = q.slice(0, k), g = ahead.reduce((s, o) => s + (o[5] || 0), 0);
+    const bars = q.map(o => `<i class="${ids.has(o[0]) ? 'me' : ''}" style="height:${Math.max(2, Math.round(o[11] / top * 36))}px" title="${esc(o[1])} ${o[11]} · GPU ${o[5]}"></i>`).join('');
+    blocks.push(`<div class="qblock"><div class="qtext"><b>${esc(j[3])}</b> 대기 ${q.length}개 중 내 잡 ${k + 1}번째 (우선순위 ${j[11]}, 줄 최고 ${top}) · 앞에 ${ahead.length}개 잡이 GPU ${g}개 요청</div><div class="qbars">${bars}</div></div>`);
+  }
+  $('queue').innerHTML = blocks.join('');
+}
+function renderMine(){ userJobs('mine', ME); userJobs('koyy', 'koyy001'); renderQueue(); }
 
 const LIMIT = 300;
 function renderJobs(){
