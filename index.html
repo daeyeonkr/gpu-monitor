@@ -42,8 +42,6 @@
   .fresh i{width:8px;height:8px;border-radius:50%;background:var(--positive);flex:none;}
   .fresh.stale i{background:var(--negative);}
   .fresh.stale #stamp{color:var(--negative);}
-  .btn{white-space:nowrap;height:var(--control-height);padding:0 14px;border-radius:999px;border:0;background:var(--raised);cursor:pointer;transition:filter .15s;}
-  .btn:hover{filter:brightness(.96);} .btn:active{transform:translateY(1px);}
 
   .title{padding:28px 0 8px;}
   h1{font-size:24px;line-height:32px;font-weight:700;margin:0;letter-spacing:-0.01em;}
@@ -115,7 +113,7 @@
 
   /* 첫 데이터가 오기 전·실패했을 때 빈 칸 대신 한 줄 */
   .kpis:empty::before,table:empty::before{content:"불러오는 중";display:block;padding:12px 16px;color:var(--muted);}
-  .failed .kpis:empty::before,.failed table:empty::before{content:"스냅샷을 불러오지 못했습니다. 새로고침을 눌러 다시 시도하세요.";}
+  .failed .kpis:empty::before,.failed table:empty::before{content:"스냅샷을 불러오지 못했습니다. 2분 뒤 다시 시도합니다.";}
 
   @media (max-width:760px){
     :root{--pad:16px;}
@@ -136,7 +134,7 @@
       <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><g fill="currentColor"><rect x="1" y="3" width="4" height="7" rx="1"/><rect x="6" y="3" width="4" height="7" rx="1"/><rect x="11" y="3" width="4" height="7" rx="1"/><rect x="16" y="3" width="4" height="7" rx="1" fill="#1d5fbf"/><rect x="1" y="12" width="4" height="7" rx="1"/><rect x="6" y="12" width="4" height="7" rx="1"/><rect x="11" y="12" width="4" height="7" rx="1"/><rect x="16" y="12" width="4" height="7" rx="1"/></g></svg>
       gpu-monitor <span>POSTECH SLURM</span>
     </div>
-    <div class="fresh" id="fresh"><i></i><span id="stamp">불러오는 중</span><button class="btn" id="reload">새로고침</button></div>
+    <div class="fresh" id="fresh"><i></i><span id="stamp">불러오는 중</span></div>
   </div>
 </header>
 
@@ -399,7 +397,6 @@ async function refresh(){
 
 for (const id of ['nodeType', 'onlyFree']) $(id).onchange = renderNodes;
 $('q').oninput = renderJobs; $('jstate').onchange = renderJobs;
-$('reload').onclick = refresh;
 addEventListener('scroll', () => $('top').classList.toggle('scrolled', scrollY > 0), {passive:true});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 refresh();
