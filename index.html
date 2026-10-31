@@ -5,102 +5,193 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>GPU 현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Geist 에는 한글이 없어서 한글 글자만 Pretendard 로 -->
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
 <style>
+  /* tasteskill achromatic-ledger: 크롬은 무채색, 색은 남은 GPU(주 데이터)에 파랑 하나 + 상태 신호만 */
   :root{
-    --bg:#f7f7f8; --card:#fff; --ink:#17171c; --muted:#6b6b78; --line:#e3e3e8;
-    --used:#e5546b; --free:#2f9e6e; --down:#b9b9c3; --me:#fff4d6; --run:#e3f5ea; --accent:#3a6ff7;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --ground:#f8f8f8; --surface:#fff; --raised:#eee; --border:#e6e6e6; --rule:#f0f0f0; --control:#d4d4d4;
+    --text:#0a0a0a; --muted:#6b6b6b; --hue:#1d5fbf; --slot:#cfcfcf;
+    --positive:#2e7d32; --negative:#c4242a;
+    --run:#eef8f1; --me:#fff4d6;
+    --font:"Geist","Pretendard Variable",Pretendard,system-ui,sans-serif;
+    --mono:"Geist Mono",ui-monospace,monospace;
+    --radius-card:8px; --radius-control:6px; --gap:12px; --pad:24px; --control-height:36px;
   }
   @media (prefers-color-scheme:dark){:root{
-    --bg:#111114; --card:#1b1b20; --ink:#ececf1; --muted:#9a9aa8; --line:#2c2c34;
-    --used:#f0657c; --free:#3fbf86; --down:#4a4a55; --me:#3a3220; --run:#1d3328; --accent:#7c9cff;
+    --ground:#000; --surface:#111; --raised:#222; --border:#2e2e2e; --rule:#1c1c1c; --control:#444;
+    --text:#fff; --muted:#b4b4b4; --hue:#5b93e6; --slot:#3a3a3a;
+    --positive:#3fc07a; --negative:#e5566f;
+    --run:#13241a; --me:#3a3220;
   }}
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Pretendard","Noto Sans KR",sans-serif;}
-  .wrap{max-width:1280px;margin:0 auto;padding:24px 16px 64px;}
-  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:20px;}
-  h1{font-size:24px;margin:0;}
-  #stamp{color:var(--muted);font-variant-numeric:tabular-nums;}
-  #stamp.stale{color:var(--used);font-weight:600;}
-  h2{font-size:17px;margin:32px 0 12px;}
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
-  .card .t{font-weight:600;}
-  .card .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px;}
-  .card .n small{font-size:14px;font-weight:400;color:var(--muted);}
-  .card .s{color:var(--muted);font-size:13px;}
-  .more{margin-top:12px;}
-  .more summary{cursor:pointer;color:var(--muted);padding:4px 0;}
-  .more .cards{margin-top:8px;}
-  .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line);margin-top:8px;}
-  .bar i{display:block;height:100%;}
-  .tbl-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;}
-  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums;}
-  th,td{padding:7px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line);}
-  th{color:var(--muted);font-weight:500;position:sticky;top:0;background:var(--card);cursor:pointer;user-select:none;}
-  tr:last-child td{border-bottom:none;}
-  tr.me td{background:var(--me);}
+  body{margin:0;background:var(--ground);color:var(--text);font:14px/20px var(--font);-webkit-font-smoothing:antialiased;}
+  .col{max-width:1152px;margin:0 auto;padding:0 var(--pad);}
+  button,input,select{font:inherit;color:var(--text);}
+  :focus-visible{outline:2px solid var(--hue);outline-offset:2px;}
+
+  /* 상단 바: 마크·이름 왼쪽, 갱신 시각·새로고침 오른쪽 */
+  .top{position:sticky;top:0;z-index:2;background:var(--ground);}
+  .top.scrolled{box-shadow:0 1px 0 var(--border);}
+  .top .col{display:flex;align-items:center;justify-content:space-between;gap:16px;height:48px;}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:500;white-space:nowrap;}
+  .brand span{color:var(--muted);font-weight:400;}
+  .fresh{display:flex;align-items:center;gap:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .fresh i{width:8px;height:8px;border-radius:50%;background:var(--positive);flex:none;}
+  .fresh.stale i{background:var(--negative);}
+  .fresh.stale #stamp{color:var(--negative);}
+  .btn{white-space:nowrap;height:var(--control-height);padding:0 14px;border-radius:999px;border:0;background:var(--raised);cursor:pointer;transition:filter .15s;}
+  .btn:hover{filter:brightness(.96);} .btn:active{transform:translateY(1px);}
+
+  .title{padding:28px 0 8px;}
+  h1{font-size:24px;line-height:32px;font-weight:700;margin:0;letter-spacing:-0.01em;}
+
+  section{margin-top:48px;}
+  .sh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:12px;}
+  h2{font-size:18px;line-height:24px;font-weight:500;margin:0;}
+  .sh .meta{color:var(--muted);font-weight:400;font-size:14px;margin-left:8px;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);}
+
+  /* 남은 GPU: 한 컨테이너를 칸으로 나눈 KPI 줄 */
+  /* 칸 사이 1px 틈으로 테두리 색이 비쳐 구분선이 됨 */
+  .kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--border);overflow:hidden;}
+  .kpi{padding:16px 14px 18px;min-width:0;background:var(--surface);}
+  @media (max-width:1000px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr));} .kpi:nth-child(7){grid-column:span 2;}}
+  .kpi .l{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .kpi .v{font-size:30px;line-height:36px;margin-top:8px;font-variant-numeric:tabular-nums;color:var(--hue);}
+  .kpi .v.zero{color:var(--muted);}
+  .kpi .v small{font-size:14px;color:var(--muted);margin-left:4px;}
+  .kpi .s{color:var(--muted);font-size:12px;margin-top:2px;}
+  .meter{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--slot);margin-top:12px;}
+  .meter i{display:block;height:100%;}
+  .meter .f{background:var(--hue);} .meter .d{background:var(--rule);}
+  details.more{margin-top:var(--gap);}
+  details.more summary{cursor:pointer;color:var(--muted);padding:4px 0;width:max-content;}
+  details.more summary:hover{color:var(--text);}
+  .others{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-top:8px;}
+  .others div{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--rule);}
+  .others b{font-weight:400;font-variant-numeric:tabular-nums;}
+  .others b.zero{color:var(--muted);}
+
+  /* 표: 회색 문장형 헤더, 행 구분선, 숫자 오른쪽 정렬 */
+  .tbl{overflow-x:auto;}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;table-layout:fixed;min-width:1040px;}
+  th,td{padding:0 12px;height:44px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  th{height:40px;color:var(--muted);font-weight:400;font-size:12px;}
+  td{border-top:1px solid var(--rule);}
+  th.n,td.n{text-align:right;}
+  td.id{font-family:var(--mono);}
+  td .g{color:var(--muted);}
   tr.run td{background:var(--run);}
-  table.jt{table-layout:fixed;min-width:900px;}
-  table.jt td{overflow:hidden;text-overflow:ellipsis;}
-  td.mono{font-family:var(--mono);font-size:12px;}
-  .gpus{display:inline-flex;gap:3px;vertical-align:middle;}
-  .gpus b{width:10px;height:10px;border-radius:2px;background:var(--free);}
-  .gpus b.u{background:var(--used);} .gpus b.d{background:var(--down);}
-  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
-  input,select,button{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
-  button{cursor:pointer;}
-  .hint{color:var(--muted);font-size:13px;}
-  [hidden]{display:none!important;}
-  .qblock{margin:8px 0 14px;}
-  .qtext{font-size:13px;margin-bottom:4px;}
-  .qbars{display:flex;align-items:flex-end;gap:1px;height:38px;overflow:hidden;}
-  .qbars i{display:block;flex:0 0 3px;background:var(--muted);opacity:.55;}
-  .qbars i.me{background:var(--accent);opacity:1;flex-basis:6px;}
+  tr.me td{background:var(--me);}
+  .bad{color:var(--negative);}
+  .empty{color:var(--muted);text-align:left;}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-top:1px solid var(--rule);color:var(--muted);}
+  .linkbtn{border:0;background:none;padding:0;color:var(--text);font-weight:500;cursor:pointer;}
+  .linkbtn:hover{text-decoration:underline;}
+
+  /* 노드의 GPU 칸: 빈 칸만 파랑 */
+  .slots{display:inline-flex;gap:3px;vertical-align:middle;}
+  .slots b{width:10px;height:10px;border-radius:2px;background:var(--slot);}
+  .slots b.f{background:var(--hue);} .slots b.d{background:none;box-shadow:inset 0 0 0 1px var(--control);}
+
+  /* 대기 줄: 같은 파티션 대기 잡의 우선순위, 내 잡만 파랑 */
+  .queue{padding:14px 16px 16px;border-top:1px solid var(--rule);}
+  .queue + .queue{border-top:1px solid var(--rule);}
+  .queue p{margin:0 0 8px;color:var(--muted);}
+  .queue p b{color:var(--text);font-weight:500;}
+  .qbars{display:flex;align-items:flex-end;gap:1px;height:40px;overflow:hidden;}
+  .qbars i{display:block;flex:0 0 3px;background:var(--slot);}
+  .qbars i.me{background:var(--hue);flex-basis:5px;}
+
+  .controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .controls input[type=search],.controls select{height:var(--control-height);padding:0 10px;border:1px solid var(--control);border-radius:var(--radius-control);background:var(--surface);}
+  .controls input[type=search]{width:260px;}
+  .controls label{display:flex;align-items:center;gap:6px;color:var(--muted);cursor:pointer;}
+  .note{color:var(--muted);margin:10px 0 0;}
+  footer{margin:64px 0 40px;color:var(--muted);}
+
+  /* 첫 데이터가 오기 전·실패했을 때 빈 칸 대신 한 줄 */
+  .kpis:empty::before,table:empty::before{content:"불러오는 중";display:block;padding:12px 16px;color:var(--muted);}
+  .failed .kpis:empty::before,.failed table:empty::before{content:"스냅샷을 불러오지 못했습니다. 새로고침을 눌러 다시 시도하세요.";}
+
+  @media (max-width:760px){
+    :root{--pad:16px;}
+    .kpis{grid-template-columns:1fr 1fr;}
+    .kpi:nth-child(7){grid-column:auto;}
+    .kpi:last-child:nth-child(odd){grid-column:1 / -1;}
+    .controls input[type=search]{width:100%;}
+    .brand span,#stamp .d{display:none;}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <main id="app">
-    <header>
-      <h1>GPU 현황</h1>
-      <span id="stamp">불러오는 중…</span>
-      <span class="hint">2분마다 갱신</span>
-    </header>
+<header class="top" id="top">
+  <div class="col">
+    <div class="brand">
+      <!-- 마크: GPU 8칸, 빈 칸 하나만 파랑 -->
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><g fill="currentColor"><rect x="1" y="3" width="4" height="7" rx="1"/><rect x="6" y="3" width="4" height="7" rx="1"/><rect x="11" y="3" width="4" height="7" rx="1"/><rect x="16" y="3" width="4" height="7" rx="1" fill="#1d5fbf"/><rect x="1" y="12" width="4" height="7" rx="1"/><rect x="6" y="12" width="4" height="7" rx="1"/><rect x="11" y="12" width="4" height="7" rx="1"/><rect x="16" y="12" width="4" height="7" rx="1"/></g></svg>
+      gpu-monitor <span>POSTECH SLURM</span>
+    </div>
+    <div class="fresh" id="fresh"><i></i><span id="stamp">불러오는 중</span><button class="btn" id="reload">새로고침</button></div>
+  </div>
+</header>
 
-    <h2>GPU 종류별 남은 개수</h2>
-    <div class="cards" id="types"></div>
+<main class="col">
+  <div class="title">
+    <h1>GPU 현황</h1>
+  </div>
+
+  <section>
+    <div class="sh"><h2>남은 GPU</h2></div>
+    <div class="panel kpis" id="types"></div>
     <details class="more">
       <summary id="otherSum">다른 GPU</summary>
-      <div class="cards" id="otherTypes"></div>
+      <div class="panel others" id="otherTypes"></div>
     </details>
+  </section>
 
-    <h2>내 잡</h2>
-    <div class="tbl-wrap"><table id="mine" class="jt"></table></div>
-    <div id="queue"></div>
+  <section>
+    <div class="sh"><h2>내 잡<span class="meta" id="mineMeta"></span></h2></div>
+    <div class="panel"><div class="tbl"><table id="mine"></table></div><div id="queue"></div></div>
+  </section>
 
-    <h2>koyy001 잡</h2>
-    <div class="tbl-wrap"><table id="koyy" class="jt"></table></div>
+  <section>
+    <div class="sh"><h2>koyy001 잡<span class="meta" id="koyyMeta"></span></h2></div>
+    <div class="panel"><div class="tbl"><table id="koyy"></table></div><div id="koyyFoot"></div></div>
+  </section>
 
-    <h2>노드</h2>
-    <div class="controls">
-      <select id="nodeType"><option value="">모든 GPU</option></select>
-      <label class="hint"><input type="checkbox" id="onlyFree"> 빈 GPU 있는 노드만</label>
+  <section>
+    <div class="sh">
+      <h2>노드</h2>
+      <div class="controls">
+        <select id="nodeType" aria-label="GPU 종류"><option value="">모든 GPU</option></select>
+        <label><input type="checkbox" id="onlyFree"> 빈 GPU 있는 노드만</label>
+      </div>
     </div>
-    <div class="tbl-wrap"><table id="nodes"></table></div>
+    <div class="panel tbl"><table id="nodes"></table></div>
+  </section>
 
-    <h2>전체 잡</h2>
-    <div class="controls">
-      <input id="q" placeholder="사용자·잡 이름·파티션·노드 검색">
-      <select id="jstate"><option value="">전체</option><option value="R">실행 중</option><option value="P">대기</option></select>
+  <section>
+    <div class="sh">
+      <h2>전체 잡</h2>
+      <div class="controls">
+        <input type="search" id="q" placeholder="사용자, 잡 이름, 파티션, 노드" aria-label="잡 검색">
+        <select id="jstate" aria-label="상태"><option value="">전체</option><option value="R">실행 중</option><option value="P">대기</option></select>
+      </div>
     </div>
-    <div class="tbl-wrap"><table id="jobs" class="jt"></table></div>
-    <p class="hint" id="jobsMore"></p>
-  </main>
-</div>
+    <div class="panel tbl"><table id="jobs"></table></div>
+    <p class="note" id="jobsMore"></p>
+  </section>
+
+  <footer>gsai-login-2 에서 2분마다 squeue · scontrol 스냅샷을 올립니다.</footer>
+</main>
 
 <script>
-const ME = 'dkim011006';
+const ME = 'dkim011006', MATE = 'koyy001';
 // raw CDN 캐시를 다 같이 공유하도록 2분 창마다 같은 주소 (push가 끝난 30초 뒤에 창이 바뀜)
 const DATA_URL = () => 'https://raw.githubusercontent.com/daeyeonkr/gpu-monitor/data/data.json.gz?t=' + Math.floor((Date.now() / 1000 - 30) / 120);
 let snap = null;
@@ -116,17 +207,19 @@ async function load(){
 
 const usable = n => !/DOWN|DRAIN|NOT_RESPONDING|FAIL|MAINT|RESERVED/.test(n.state);
 const freeOf = n => usable(n) ? Math.max(0, n.total - n.alloc) : 0;
+const kst = (ts, sec) => new Date(ts * 1000).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', ...(sec ? {second:'2-digit'} : {}), hour12:false});
 
 function renderStamp(){
   if (!snap) return;
-  const d = new Date(snap.ts * 1000);
   const ago = Math.round((Date.now() / 1000 - snap.ts) / 60);
-  const t = d.toLocaleString('ko-KR', {timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
-  $('stamp').textContent = `${t} 기준 (${ago < 1 ? '방금' : ago + '분 전'})`;
-  $('stamp').classList.toggle('stale', ago >= 10);
+  $('stamp').innerHTML = `<span class="d">${kst(snap.ts, true)} 기준, </span>${ago < 1 ? '방금' : ago + '분 전'}`;
+  $('fresh').classList.toggle('stale', ago >= 10);
 }
 
-function renderTypes(){
+// 주로 쓰는 A100 80GB, H200, A100 40GB, RTX 6000 두 종 순으로 앞에, 나머지는 토글 안에
+const RTX = ['RTXPro6000', 'RTX6000ADA'];
+const rank = k => /^A100.*80GB/.test(k) ? 0 : /^H200/.test(k) ? 1 : /^A100.*40GB/.test(k) ? 2 : RTX.includes(k) ? 3 + RTX.indexOf(k) / 10 : 4;
+function typeStats(){
   const by = {};
   for (const n of snap.nodes){
     const g = by[n.gpu] ||= {total:0, used:0, down:0, free:0, nodes:0};
@@ -134,20 +227,22 @@ function renderTypes(){
     if (usable(n)){ g.used += Math.min(n.alloc, n.total); g.free += freeOf(n); }
     else g.down += n.total;
   }
-  // 주로 쓰는 A100 80GB, H200, A100 40GB 순으로 앞에, 나머지는 토글 안에
-  const rank = k => /^A100.*80GB/.test(k) ? 0 : /^H200/.test(k) ? 1 : /^A100.*40GB/.test(k) ? 2 : 3;
-  const rows = Object.entries(by).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1].free - a[1].free || a[0].localeCompare(b[0]));
-  const card = ([k, g]) => `
-    <div class="card">
-      <div class="t">${esc(k)}</div>
-      <div class="n">${g.free} <small>/ ${g.total} 남음</small></div>
-      <div class="s">노드 ${g.nodes}개${g.down ? ` · 사용 불가 ${g.down}` : ''}</div>
-      <div class="bar"><i style="width:${g.used / g.total * 100}%;background:var(--used)"></i><i style="width:${g.free / g.total * 100}%;background:var(--free)"></i><i style="width:${g.down / g.total * 100}%;background:var(--down)"></i></div>
-    </div>`;
-  const main = rows.filter(r => rank(r[0]) < 3), rest = rows.filter(r => rank(r[0]) === 3);
-  $('types').innerHTML = main.map(card).join('');
-  $('otherTypes').innerHTML = rest.map(card).join('');
-  $('otherSum').textContent = `다른 GPU ${rest.length}종 · ${rest.reduce((s, r) => s + r[1].free, 0)}개 남음`;
+  return Object.entries(by).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1].free - a[1].free || a[0].localeCompare(b[0]));
+}
+
+function renderTypes(){
+  const rows = typeStats();
+  const main = rows.filter(r => rank(r[0]) < 4), rest = rows.filter(r => rank(r[0]) === 4);
+  $('types').innerHTML = main.map(([k, g]) => `
+    <div class="kpi">
+      <div class="l" title="${esc(k)}">${esc(k)}</div>
+      <div class="v${g.free ? '' : ' zero'}">${g.free}<small>/ ${g.total}</small></div>
+      <div class="s">노드 ${g.nodes}개${g.down ? `, 사용 불가 ${g.down}` : ''}</div>
+      <div class="meter" title="사용 ${g.used}, 남음 ${g.free}, 사용 불가 ${g.down}"><i style="width:${g.used / g.total * 100}%"></i><i class="f" style="width:${g.free / g.total * 100}%"></i><i class="d" style="width:${g.down / g.total * 100}%"></i></div>
+    </div>`).join('');
+  $('otherTypes').innerHTML = rest.map(([k, g]) =>
+    `<div><span>${esc(k)}</span><b class="${g.free ? '' : 'zero'}">${g.free} <span class="g">/ ${g.total}</span></b></div>`).join('');
+  $('otherSum').textContent = `다른 GPU ${rest.length}종, ${rest.reduce((s, r) => s + r[1].free, 0)}개 남음`;
   const sel = $('nodeType'), cur = sel.value;
   sel.innerHTML = '<option value="">모든 GPU</option>' + rows.map(([k]) => `<option>${esc(k)}</option>`).join('');
   sel.value = cur;
@@ -177,10 +272,18 @@ function expand(list){
   return out;
 }
 
-function gpuDots(n){
+function slots(n){
   const u = Math.min(n.alloc, n.total);
-  return '<span class="gpus">' + Array.from({length:n.total}, (_, i) =>
-    `<b class="${!usable(n) ? 'd' : i < u ? 'u' : ''}"></b>`).join('') + '</span>';
+  return '<span class="slots">' + Array.from({length:n.total}, (_, i) =>
+    `<b class="${!usable(n) ? 'd' : i < u ? '' : 'f'}"></b>`).join('') + '</span>';
+}
+
+// room-keeper 점검: [시각, GPU 켜짐, GPU 끼리 통신(1장이면 null), wandb, 설명]
+function healthOf(name){
+  const h = (snap.health || {})[name];
+  if (!h) return ['<span class="g">-</span>', ''];
+  const bad = [['GPU', h[1]], ['통신', h[2]], ['wandb', h[3]]].filter(([, v]) => v === false).map(([l]) => l + ' 실패');
+  return [`${bad.length ? `<span class="bad">${bad.join(', ')}</span>` : '정상'} <span class="g">${esc(kst(h[0]))}</span>`, h[4] || ''];
 }
 
 function renderNodes(){
@@ -188,28 +291,18 @@ function renderNodes(){
   const rows = snap.nodes
     .filter(n => (!type || n.gpu === type) && (!onlyFree || freeOf(n) > 0))
     .sort((a, b) => freeOf(b) - freeOf(a) || a.name.localeCompare(b.name, undefined, {numeric:true}));
-  $('nodes').innerHTML = '<thead><tr><th>노드</th><th>GPU</th><th>사용</th><th>남음</th><th>CPU</th><th>상태</th><th>점검</th><th>사용자 (GPU 수)</th></tr></thead><tbody>' +
-    rows.map(n => {
-      const us = Object.entries(users[n.name] || {}).sort((a, b) => b[1] - a[1]);
+  const cols = [7, 15, 13, 6, 8, 11, 15, 25].map(w => `<col style="width:${w}%">`).join('');
+  $('nodes').innerHTML = `<colgroup>${cols}</colgroup><thead><tr><th>노드</th><th>GPU</th><th>칸</th><th class="n">남음</th><th class="n">CPU</th><th>상태</th><th>점검</th><th>사용자 (GPU 수)</th></tr></thead><tbody>` +
+    (rows.length ? rows.map(n => {
+      const us = Object.entries(users[n.name] || {}).sort((a, b) => b[1] - a[1]), [hc, ht] = healthOf(n.name);
       return `<tr class="${us.some(([u]) => u === ME) ? 'me' : ''}">
-        <td class="mono">${esc(n.name)}</td><td>${esc(n.gpu)}</td><td>${gpuDots(n)}</td>
-        <td>${freeOf(n)}</td><td>${n.cpu[0]}/${n.cpu[1]}</td>
+        <td class="id">${esc(n.name)}</td><td>${esc(n.gpu)}</td><td>${slots(n)}</td>
+        <td class="n">${freeOf(n) || '<span class="g">0</span>'}</td><td class="n">${n.cpu[0]}<span class="g">/${n.cpu[1]}</span></td>
         <td title="${esc(n.reason)}">${esc(n.state.toLowerCase())}</td>
-        <td title="${esc(healthOf(n.name)[1])}">${healthOf(n.name)[0]}</td>
-        <td>${us.map(([u, c]) => `${esc(u)} (${c})`).join(', ')}</td></tr>`;
-    }).join('') + '</tbody>';
+        <td title="${esc(ht)}">${hc}</td>
+        <td title="${esc(us.map(([u, c]) => `${u} (${c})`).join(', '))}">${us.map(([u, c]) => `${esc(u)} <span class="g">${c}</span>`).join(', ') || '<span class="g">-</span>'}</td></tr>`;
+    }).join('') : '<tr><td colspan="8" class="empty">조건에 맞는 노드가 없습니다.</td></tr>') + '</tbody>';
 }
-
-// room-keeper 점검: [시각, GPU 켜짐, GPU 끼리 통신(1장이면 null), wandb, 설명]
-function healthOf(name){
-  const h = (snap.health || {})[name];
-  if (!h) return ['', ''];
-  const mark = (label, v) => v === null || v === undefined ? '' : `${label} ${v ? '✓' : '✗'}`;
-  const d = new Date(h[0] * 1000).toLocaleString('ko-KR', {timeZone:'Asia/Seoul', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
-  return [[mark('GPU', h[1]), mark('통신', h[2]), mark('wandb', h[3])].filter(Boolean).join(' ') + ` (${esc(d)})`, h[4] || ''];
-}
-
-const JOB_HEAD = '<colgroup>' + [7, 9, 18, 11, 5, 4, 17, 11, 9, 9].map(w => `<col style="width:${w}%">`).join('') + '</colgroup><thead><tr><th>ID</th><th>사용자</th><th>이름</th><th>파티션</th><th>상태</th><th>GPU</th><th>노드 / 대기 사유</th><th title="스케줄링 우선순위 (클수록 먼저). 대기 잡은 같은 파티션 줄에서의 순번">우선순위 · 줄</th><th>남은 시간</th><th>제한</th></tr></thead>';
 
 // 대기열: 잡 j 와 파티션을 하나라도 공유하는 대기 잡들 (의존성·보류 등 우선순위와 무관하게 멈춘 잡은 제외), 우선순위 큰 순
 const parked = j => /Dependency|Held|BeginTime|QOSMax|AssocMax|ReqNodeNotAvail|Licenses/.test(j[9] || '');
@@ -221,26 +314,43 @@ function queueOf(j){
 }
 function prioCell(j){
   if (j[11] === undefined) return '';
-  if (j[4] !== 'P') return `<span class="hint">${j[11]}</span>`;
-  if (parked(j)) return `${j[11]} <span class="hint">(보류)</span>`;
+  if (j[4] !== 'P') return `<span class="g">${j[11]}</span>`;
+  if (parked(j)) return `${j[11]} <span class="g">보류</span>`;
   const q = queueOf(j), k = q.findIndex(o => o[0] === j[0]);
   const ahead = q.slice(0, k), g = ahead.reduce((s, o) => s + (o[5] || 0), 0);
-  return `<span title="앞에 ${ahead.length}개 잡, GPU ${g}개 요청, 줄 최고 ${q[0]?.[11] ?? ''}">${j[11]} <small>${k + 1}/${q.length}</small></span>`;
+  return `<span title="앞에 ${ahead.length}개 잡, GPU ${g}개 요청, 줄 최고 ${q[0]?.[11] ?? ''}">${j[11]} <span class="g">${k + 1}/${q.length}</span></span>`;
 }
-// 내 잡·koyy001 표(own)는 실행 중인 잡만 초록, 전체 잡 표는 내 잡을 황금색
+
+// own: 내 잡·koyy001 표 (사용자 칸 없음, 실행 중인 잡만 초록), 아니면 전체 잡 표 (내 잡 황금색)
+function jobHead(own){
+  const w = own ? [9, 21, 13, 6, 5, 18, 10, 9, 9] : [8, 10, 18, 11, 5, 4, 16, 10, 9, 9];
+  return '<colgroup>' + w.map(x => `<col style="width:${x}%">`).join('') + '</colgroup><thead><tr><th>ID</th>' + (own ? '' : '<th>사용자</th>') +
+    '<th>이름</th><th>파티션</th><th>상태</th><th class="n">GPU</th><th>노드 / 대기 사유</th><th class="n" title="스케줄링 우선순위 (클수록 먼저). 대기 잡은 같은 파티션 줄에서의 순번">우선순위, 줄</th><th class="n">남은 시간</th><th class="n">제한</th></tr></thead>';
+}
 const jobRow = (j, own) => `<tr class="${own ? (j[4] === 'R' ? 'run' : '') : j[1] === ME ? 'me' : ''}">
-  <td class="mono">${esc(j[0])}</td><td>${esc(j[1])}</td><td title="${esc(j[2])}">${esc(j[2])}</td><td>${esc(j[3])}</td>
-  <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td>${j[5] || ''}</td>
-  <td class="mono" title="${esc(j[4] === 'R' ? j[6] : j[9])}">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td>${prioCell(j)}</td><td>${esc(j[4] === 'R' ? j[10] ?? '' : '')}</td><td>${esc(j[8])}</td></tr>`;
+  <td class="id">${esc(j[0])}</td>${own ? '' : `<td>${esc(j[1])}</td>`}<td title="${esc(j[2])}">${esc(j[2])}</td><td title="${esc(j[3])}">${esc(j[3])}</td>
+  <td>${j[4] === 'R' ? '실행' : j[4] === 'P' ? '대기' : esc(j[4])}</td><td class="n">${j[5] || '<span class="g">0</span>'}</td>
+  <td title="${esc(j[4] === 'R' ? j[6] : j[9])}">${esc(j[4] === 'R' ? j[6] : j[9])}</td><td class="n">${prioCell(j)}</td><td class="n">${j[4] === 'R' ? esc(j[10] ?? '') : '<span class="g">-</span>'}</td><td class="n g">${esc(j[8])}</td></tr>`;
 
-function userJobs(id, user){
-  const js = snap.jobs.filter(j => j[1] === user);
-  $(id).innerHTML = JOB_HEAD + '<tbody>' + (js.length ? js.map(j => jobRow(j, true)).join('')
-    : '<tr><td colspan="10" class="hint">돌고 있는 잡 없음</td></tr>') + '</tbody>';
+// 실행 먼저, 대기는 우선순위 큰 순
+const jobsOf = user => snap.jobs.filter(j => j[1] === user)
+  .sort((a, b) => (a[4] === 'R' ? 0 : 1) - (b[4] === 'R' ? 0 : 1) || (b[11] ?? 0) - (a[11] ?? 0));
+const tally = js => {
+  const r = js.filter(j => j[4] === 'R');
+  return {r: r.length, g: r.reduce((s, j) => s + (j[5] || 0), 0), p: js.length - r.length};
+};
+const metaText = t => `실행 ${t.r}개, GPU ${t.g}장 · 대기 ${t.p}개`;
+
+let koyyAll = false;
+const KOYY_CAP = 8;
+function userTable(id, js, cap){
+  const shown = cap ? js.slice(0, cap) : js;
+  $(id).innerHTML = jobHead(true) + '<tbody>' + (shown.length ? shown.map(j => jobRow(j, true)).join('')
+    : '<tr><td colspan="9" class="empty">돌고 있는 잡이 없습니다.</td></tr>') + '</tbody>';
 }
 
-// 내 대기 잡이 선 줄: 파티션 묶음마다 대기 잡 우선순위를 막대로 (내 잡 황금색), 앞에 선 잡과 GPU 요청 수
-function renderQueue(){
+// 내 대기 잡이 선 줄: 파티션 묶음마다 대기 잡 우선순위를 막대로 (내 잡 파랑), 앞에 선 잡과 GPU 요청 수
+function queueBlocks(){
   const mine = snap.jobs.filter(j => j[1] === ME && j[4] === 'P' && j[11] !== undefined && !parked(j));
   const seen = new Set(), blocks = [];
   for (const j of mine){
@@ -248,33 +358,49 @@ function renderQueue(){
     seen.add(j[3]);
     const q = queueOf(j), top = q[0]?.[11] || 1, ids = new Set(mine.filter(o => o[3] === j[3]).map(o => o[0]));
     const k = q.findIndex(o => ids.has(o[0])), ahead = q.slice(0, k), g = ahead.reduce((s, o) => s + (o[5] || 0), 0);
-    const bars = q.map(o => `<i class="${ids.has(o[0]) ? 'me' : ''}" style="height:${Math.max(2, Math.round(o[11] / top * 36))}px" title="${esc(o[1])} ${o[11]} · GPU ${o[5]}"></i>`).join('');
-    blocks.push(`<div class="qblock"><div class="qtext"><b>${esc(j[3])}</b> 대기 ${q.length}개 중 내 잡 ${k + 1}번째 (우선순위 ${j[11]}, 줄 최고 ${top}) · 앞에 ${ahead.length}개 잡이 GPU ${g}개 요청</div><div class="qbars">${bars}</div></div>`);
+    const bars = q.map(o => `<i class="${ids.has(o[0]) ? 'me' : ''}" style="height:${Math.max(2, Math.round(o[11] / top * 40))}px" title="${esc(o[1])} ${o[11]}, GPU ${o[5]}"></i>`).join('');
+    blocks.push({part: j[3], k, n: q.length, html: `<div class="queue"><p><b>${esc(j[3])} 대기 줄</b>에서 ${q.length}개 중 <b>${k + 1}번째</b>. 우선순위 ${j[11]}, 줄 최고 ${top}, 앞의 ${ahead.length}개 잡이 GPU ${g}장을 기다리는 중</p><div class="qbars" role="img" aria-label="${esc(j[3])} 대기 잡 우선순위, 내 잡 ${k + 1}번째">${bars}</div></div>`});
   }
-  $('queue').innerHTML = blocks.join('');
+  return blocks;
 }
-function renderMine(){ userJobs('mine', ME); userJobs('koyy', 'koyy001'); renderQueue(); }
+
+function renderMine(){
+  const mine = jobsOf(ME), koyy = jobsOf(MATE), tm = tally(mine), tk = tally(koyy);
+  userTable('mine', mine);
+  $('mineMeta').textContent = metaText(tm);
+  const qb = queueBlocks();
+  $('queue').innerHTML = qb.map(b => b.html).join('');
+
+  userTable('koyy', koyy, koyyAll ? 0 : KOYY_CAP);
+  $('koyyMeta').textContent = metaText(tk);
+  $('koyyFoot').innerHTML = koyy.length > KOYY_CAP
+    ? `<div class="foot"><span>${koyyAll ? `${koyy.length}개 전부` : `${koyy.length}개 중 ${KOYY_CAP}개`}</span><button class="linkbtn" id="koyyMore">${koyyAll ? '접기' : `전체 ${koyy.length}개 보기`}</button></div>` : '';
+  if ($('koyyMore')) $('koyyMore').onclick = () => { koyyAll = !koyyAll; renderMine(); };
+}
 
 const LIMIT = 300;
 function renderJobs(){
   const q = $('q').value.trim().toLowerCase(), st = $('jstate').value;
   const rows = snap.jobs.filter(j => (!st || j[4] === st) &&
     (!q || [j[1], j[2], j[3], j[6]].some(v => v.toLowerCase().includes(q))));
-  $('jobs').innerHTML = JOB_HEAD + '<tbody>' + rows.slice(0, LIMIT).map(j => jobRow(j)).join('') + '</tbody>';
+  $('jobs').innerHTML = jobHead(false) + '<tbody>' + (rows.length ? rows.slice(0, LIMIT).map(j => jobRow(j)).join('')
+    : '<tr><td colspan="10" class="empty">검색에 맞는 잡이 없습니다.</td></tr>') + '</tbody>';
   const r = snap.jobs.filter(j => j[4] === 'R').length;
-  $('jobsMore').textContent = `실행 ${r} · 대기 ${snap.jobs.length - r}` +
-    (rows.length > LIMIT ? ` · 검색 결과 ${rows.length}개 중 ${LIMIT}개 표시` : '');
+  $('jobsMore').textContent = `실행 ${r}개, 대기 ${snap.jobs.length - r}개` +
+    (rows.length > LIMIT ? `. 검색 결과 ${rows.length}개 중 ${LIMIT}개 표시` : '');
 }
 
 function render(){ renderStamp(); renderTypes(); renderMine(); renderNodes(); renderJobs(); }
 
 async function refresh(){
-  try{ snap = await load(); render(); }
-  catch(e){ if (snap) renderStamp(); else $('stamp').textContent = '데이터를 불러오지 못했습니다'; console.warn(e); }
+  try{ snap = await load(); document.body.classList.remove('failed'); render(); }
+  catch(e){ if (snap) renderStamp(); else { $('stamp').textContent = '불러오기 실패'; document.body.classList.add('failed'); } console.warn(e); }
 }
 
 for (const id of ['nodeType', 'onlyFree']) $(id).onchange = renderNodes;
 $('q').oninput = renderJobs; $('jstate').onchange = renderJobs;
+$('reload').onclick = refresh;
+addEventListener('scroll', () => $('top').classList.toggle('scrolled', scrollY > 0), {passive:true});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 refresh();
 setInterval(refresh, 120000);
